@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, condecimal
-from datetime import datetime
+from pydantic import BaseModel, Field
+from decimal import Decimal
+from datetime import datetime, date
 class TxIn(BaseModel):
     kind: str = Field(pattern="^(income|expense)$")
-    amount: condecimal(gt=0)
+    amount: Decimal = Field(gt=0)
     category: str = "general"
     note: str = ""
 class TxOut(TxIn):
