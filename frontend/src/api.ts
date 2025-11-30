@@ -51,3 +51,33 @@ export async function createReminder(input:{name:string; due_date:string; amount
   if (!r.ok) throw new Error(`API ${r.status}`);
   return r.json();
 }
+
+export async function listGoals() {
+  const r = await fetch(`${API_BASE}/goals/`);
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+
+export async function createGoal(input:{name:string; target_amount:number; target_date?:string; category?:string; description?:string}) {
+  const r = await fetch(`${API_BASE}/goals/`, {
+    method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(input)
+  });
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+
+export async function contributeToGoal(goalId: number, amount: number) {
+  const r = await fetch(`${API_BASE}/goals/${goalId}/contribute`, {
+    method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ amount })
+  });
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+
+export async function deleteGoal(goalId: number) {
+  const r = await fetch(`${API_BASE}/goals/${goalId}`, {
+    method:"DELETE"
+  });
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}

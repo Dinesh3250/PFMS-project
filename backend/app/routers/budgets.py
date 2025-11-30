@@ -14,14 +14,14 @@ def get_db():
 
 @router.post("/", response_model=schemas.BudgetOut, status_code=201)
 def create_budget(budget: schemas.BudgetIn, db: Session = Depends(get_db)):
-    # TODO: Use service
-    obj = Budget(**budget.model_dump())
-    db.add(obj); db.commit(); db.refresh(obj)
-    return obj
+    try:
+        return budget_service.create_budget(db, budget)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/", response_model=list[schemas.BudgetOut])
 def list_budgets(month: str | None = None, db: Session = Depends(get_db)):
-    # TODO: Use service, add utilization field
-    q = db.query(Budget)
-    if month: q = q.filter(Budget.month == month)
-    return q.all()
+    try:
+        return budget_service.get_budgets(db, month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

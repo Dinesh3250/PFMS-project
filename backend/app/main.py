@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from .db import Base, engine
-from .routers import transactions_router, budgets_router, reminders_router
+from .routers import transactions_router, budgets_router, reminders_router, goals_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="PFMS API")
@@ -19,6 +19,7 @@ app.add_middleware(
 app.include_router(transactions_router)
 app.include_router(budgets_router)
 app.include_router(reminders_router)
+app.include_router(goals_router)
 
 @app.get("/")
 def root(): return {"service": "pfms", "status": "running"}

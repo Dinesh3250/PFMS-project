@@ -18,6 +18,7 @@ class BudgetIn(BaseModel):
 
 class BudgetOut(BudgetIn):
     id: int
+    utilization: float = 0.0
     class Config: from_attributes = True
 
 class ReminderIn(BaseModel):
@@ -29,4 +30,19 @@ class ReminderIn(BaseModel):
 
 class ReminderOut(ReminderIn):
     id: int
+    class Config: from_attributes = True
+
+class GoalIn(BaseModel):
+    name: str
+    target_amount: Decimal = Field(gt=0)
+    target_date: date | None = None
+    category: str = "savings"
+    description: str = ""
+
+class GoalOut(GoalIn):
+    id: int
+    current_amount: Decimal = 0.0
+    is_completed: str = "false"
+    progress_percentage: float = 0.0
+    created_at: datetime
     class Config: from_attributes = True

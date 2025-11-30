@@ -36,5 +36,21 @@ class Reminder(Base):
     notes = Column(String, default="")
     __table_args__ = (
         CheckConstraint("amount >= 0", name="ck_reminder_amount_non_negative"),
-        CheckConstraint("due_date > date('now', '-1 day')", name="ck_reminder_due_date_future"),  # SQLite specific, adjust for other DBs
+    )
+
+class Goal(Base):
+    __tablename__ = "goals"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    target_amount = Column(Numeric(12,2), nullable=False)
+    current_amount = Column(Numeric(12,2), default=0.0)
+    target_date = Column(Date, nullable=True)
+    category = Column(String, default="savings")
+    description = Column(String, default="")
+    is_completed = Column(String, default="false")  # Using string for SQLite compatibility
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        CheckConstraint("target_amount > 0", name="ck_goal_target_amount_positive"),
+        CheckConstraint("current_amount >= 0", name="ck_goal_current_amount_non_negative"),
+        CheckConstraint("is_completed IN ('true', 'false')", name="ck_goal_is_completed"),
     )
