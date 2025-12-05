@@ -3,15 +3,16 @@ from sqlalchemy.exc import IntegrityError
 from ..models import Budget, Transaction
 import re
 
-def create_budget(db, budget_data):
+def create_budget(db, budget_data, user_id):
     # Validate month format
     if not re.match(r'^\d{4}-\d{2}$', budget_data.month):
         raise ValueError("Month must be in YYYY-MM format")
     if budget_data.cap_amount < 0:
         raise ValueError("Cap amount must be greater than or equal to 0")
 
-    # Check for unique (category, month)
+    # Check for unique (user_id, category, month)
     existing = db.query(Budget).filter(
+        Budget.user_id == user_id,
         Budget.category == budget_data.category,
         Budget.month == budget_data.month
     ).first()
@@ -19,7 +20,7 @@ def create_budget(db, budget_data):
         raise ValueError("Budget for this category and month already exists")
 
     # Create budget
-    budget = Budget(**budget_data.model_dump())
+    budget = Budget(user_id=user_id, **budget_data.model_dump())
     db.add(budget)
     db.commit()
     db.refresh(budget)
@@ -46,8 +47,8 @@ def compute_utilization(db, category, month):
 
     return float(total_expense)
 
-def get_budgets(db, month=None):
-    query = db.query(Budget)
+def get_budgets(db, user_id, month=None):
+    query = db.query(Budget).filter(Budget.user_id == user_id)
     if month:
         if not re.match(r'^\d{4}-\d{2}$', month):
             raise ValueError("Month must be in YYYY-MM format")
@@ -59,3 +60,14 @@ def get_budgets(db, month=None):
         budget.utilization = compute_utilization(db, budget.category, budget.month)
 
     return budgets
+
+def delete_budget(db, budget_id, user_id):
+    budget = db.query(Budget).filter(
+        Budget.id == budget_id,
+        Budget.user_id == user_id
+    ).first()
+    if not budget:
+        raise ValueError("Budget not found or does not belong to user")
+    db.delete(budget)
+    db.commit()
+    return {"message": "Budget deleted successfully"}

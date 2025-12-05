@@ -1,5 +1,9 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
 import './App.css';
+import { useAuth } from './AuthContext';
+import Login from './Login';
+import { getAuthHeaders } from './api';
 
 // API base URL
 const API_BASE = 'http://localhost:8000';
@@ -71,13 +75,14 @@ interface Goal {
   target_date?: string;
   category: string;
   description?: string;
-  is_completed: string;
+  is_completed: boolean;
   progress_percentage?: number;
 }
 
 function App() {
+  const { user, isLoading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('transactions');
-  
+
   // Transaction state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionForm, setTransactionForm] = useState({
@@ -121,7 +126,9 @@ function App() {
   // Fetch functions
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_BASE}/transactions/`);
+      const response = await fetch(`${API_BASE}/transactions/`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         setTransactions(data);
@@ -133,7 +140,9 @@ function App() {
 
   const fetchBudgets = async () => {
     try {
-      const response = await fetch(`${API_BASE}/budgets/`);
+      const response = await fetch(`${API_BASE}/budgets/`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         setBudgets(data);
@@ -145,7 +154,9 @@ function App() {
 
   const fetchReminders = async () => {
     try {
-      const response = await fetch(`${API_BASE}/reminders/`);
+      const response = await fetch(`${API_BASE}/reminders/`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         setReminders(data);
@@ -157,7 +168,9 @@ function App() {
 
   const fetchGoals = async () => {
     try {
-      const response = await fetch(`${API_BASE}/goals/`);
+      const response = await fetch(`${API_BASE}/goals/`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         // Convert string amounts to numbers for frontend compatibility
@@ -175,23 +188,42 @@ function App() {
 
   // Load data on component mount
   useEffect(() => {
+    if (isLoading || !user) return;
     fetchTransactions();
     fetchBudgets();
     fetchReminders();
     fetchGoals();
-  }, []);
+  }, [isLoading, user]);
+
+  // Show loading spinner while checking authentication
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '1.5em'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!user) {
+    return <Login />;
+  }
 
   // Form submission handlers
   const handleTransactionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
     try {
       const response = await fetch(`${API_BASE}/transactions/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           kind: transactionForm.type,
           amount: parseFloat(transactionForm.amount),
@@ -200,7 +232,7 @@ function App() {
           date: transactionForm.date
         }),
       });
-      
+
       if (response.ok) {
         setTransactionForm({ amount: '', description: '', category: '', date: new Date().toISOString().split('T')[0], type: 'expense' });
         fetchTransactions();
@@ -215,20 +247,18 @@ function App() {
   const handleBudgetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
     try {
       const response = await fetch(`${API_BASE}/budgets/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: budgetForm.category,
           month: budgetForm.month,
           cap_amount: parseFloat(budgetForm.limit)
         }),
       });
-      
+
       if (response.ok) {
         setBudgetForm({ category: '', limit: '', month: new Date().toISOString().slice(0, 7) });
         fetchBudgets();
@@ -246,19 +276,17 @@ function App() {
   const handleReminderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
     try {
       const response = await fetch(`${API_BASE}/reminders/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...reminderForm,
           amount: parseFloat(reminderForm.amount)
         }),
       });
-      
+
       if (response.ok) {
         setReminderForm({ name: '', amount: '', due_date: '', payee: '', notes: '' });
         fetchReminders();
@@ -273,20 +301,18 @@ function App() {
   const handleGoalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
     try {
       const response = await fetch(`${API_BASE}/goals/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...goalForm,
           target_amount: parseFloat(goalForm.target_amount),
           target_date: goalForm.target_date || null
         }),
       });
-      
+
       if (response.ok) {
         setGoalForm({ name: '', target_amount: '', target_date: '', category: 'savings', description: '' });
         fetchGoals();
@@ -302,11 +328,9 @@ function App() {
     try {
       const response = await fetch(`${API_BASE}/goals/${goalId}/contribute?amount=${amount}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
-      
+
       if (response.ok) {
         fetchGoals();
       }
@@ -316,17 +340,69 @@ function App() {
   };
 
   const handleGoalDelete = async (goalId: number) => {
-    if (confirm('Are you sure you want to delete this goal?')) {
+    if (window.confirm('Are you sure you want to delete this goal?')) {
       try {
         const response = await fetch(`${API_BASE}/goals/${goalId}`, {
           method: 'DELETE',
+          headers: getAuthHeaders(),
         });
-        
+
         if (response.ok) {
           fetchGoals();
         }
       } catch (error) {
         console.error('Error deleting goal:', error);
+      }
+    }
+  };
+
+  const handleTransactionDelete = async (transactionId: number) => {
+    if (window.confirm('Are you sure you want to delete this transaction?')) {
+      try {
+        const response = await fetch(`${API_BASE}/transactions/${transactionId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        });
+
+        if (response.ok) {
+          fetchTransactions();
+        }
+      } catch (error) {
+        console.error('Error deleting transaction:', error);
+      }
+    }
+  };
+
+  const handleBudgetDelete = async (budgetId: number) => {
+    if (window.confirm('Are you sure you want to delete this budget?')) {
+      try {
+        const response = await fetch(`${API_BASE}/budgets/${budgetId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        });
+
+        if (response.ok) {
+          fetchBudgets();
+        }
+      } catch (error) {
+        console.error('Error deleting budget:', error);
+      }
+    }
+  };
+
+  const handleReminderDelete = async (reminderId: number) => {
+    if (window.confirm('Are you sure you want to delete this reminder?')) {
+      try {
+        const response = await fetch(`${API_BASE}/reminders/${reminderId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        });
+
+        if (response.ok) {
+          fetchReminders();
+        }
+      } catch (error) {
+        console.error('Error deleting reminder:', error);
       }
     }
   };
@@ -395,11 +471,12 @@ function App() {
                       onChange={e => setTransactionForm(prev => ({ ...prev, amount: e.target.value }))}
                       required
                       placeholder="0.00"
-                      style={{ 
-                        width: "100%", 
-                        padding: "12px", height: "44px", 
-                        border: "2px solid #e0e0e0", 
-                        borderRadius: 8,
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        height: "44px",
+                        border: "2px solid #e0e0e0",
+                        borderRadius: "8px",
                         fontSize: "14px",
                         boxSizing: "border-box"
                       }}
@@ -438,14 +515,15 @@ function App() {
                     onChange={e => setTransactionForm(prev => ({ ...prev, description: e.target.value }))}
                     required
                     placeholder="What was this transaction for?"
-                    style={{ 
-                      width: "100%", 
-                      padding: "12px", height: "44px", 
-                      border: "2px solid #e0e0e0", 
-                      borderRadius: 8,
-                      fontSize: "14px",
-                      boxSizing: "border-box"
-                    }}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        height: "44px",
+                        border: "2px solid #e0e0e0",
+                        borderRadius: "8px",
+                        fontSize: "14px",
+                        boxSizing: "border-box"
+                      }}
                   />
                 </div>
 
@@ -524,16 +602,16 @@ function App() {
                     }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ 
-                            fontWeight: "bold", 
+                          <div style={{
+                            fontWeight: "bold",
                             fontSize: "1.1em",
                             color: "#333",
                             marginBottom: 4
                           }}>
                             {transaction.kind === 'income' ? '💵' : '💸'} {transaction.note || 'No description'}
                           </div>
-                          <div style={{ 
-                            fontSize: "0.9em", 
+                          <div style={{
+                            fontSize: "0.9em",
                             color: "#666",
                             display: "flex",
                             alignItems: "center",
@@ -553,12 +631,38 @@ function App() {
                             <span>{new Date(transaction.created_at || transaction.date || new Date()).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <div style={{
-                          fontWeight: "bold",
-                          fontSize: "1.2em",
-                          color: transaction.kind === 'income' ? "#4caf50" : "#f44336"
-                        }}>
-                          {transaction.kind === 'income' ? '+' : '-'}${parseFloat(transaction.amount.toString()).toFixed(2)}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{
+                            fontWeight: "bold",
+                            fontSize: "1.2em",
+                            color: transaction.kind === 'income' ? "#4caf50" : "#f44336"
+                          }}>
+                            {(transaction.kind === 'income' ? '+' : '-') + "$" + parseFloat(transaction.amount.toString()).toFixed(2)}
+                          </div>
+                          <button
+                            onClick={() => handleTransactionDelete(transaction.id)}
+                            style={{
+                              padding: "6px 12px",
+                              backgroundColor: "#f44336",
+                              color: "white",
+                              border: "none",
+                              borderRadius: 6,
+                              fontSize: "0.8em",
+                              fontWeight: "bold",
+                              cursor: "pointer",
+                              transition: "background-color 0.2s"
+                            }}
+                            onMouseEnter={(e) => {
+                              const target = e.target as HTMLButtonElement;
+                              target.style.backgroundColor = "#d32f2f";
+                            }}
+                            onMouseLeave={(e) => {
+                              const target = e.target as HTMLButtonElement;
+                              target.style.backgroundColor = "#f44336";
+                            }}
+                          >
+                            🗑️ Delete
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -569,6 +673,7 @@ function App() {
           </div>
         );
 
+      // ...existing code...
       case "budgets":
         return (
           <div>
@@ -583,11 +688,11 @@ function App() {
             }}>
               <h2 style={{ margin: "0 0 20px 0", color: "#333", fontSize: "1.5em" }}>🎯 Set Budget</h2>
               <form onSubmit={handleBudgetSubmit}>
-                <div style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "1fr 1fr", 
-                  gap: 16, 
-                  marginBottom: 20 
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "16px",
+                  marginBottom: "20px"
                 }}>
                   <div>
                     <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", color: "#555" }}>
@@ -695,19 +800,19 @@ function App() {
                   <p>No budgets set yet. Create one above!</p>
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: 20 }}>
+                <div style={{ display: "grid", gap: "20px" }}>
                   {budgets.map(budget => {
                     const limit = parseFloat(budget.cap_amount || budget.limit || '0');
                     const spent = parseFloat(budget.utilization || budget.spent || '0');
                     const percentage = limit > 0 ? (spent / limit) * 100 : 0;
                     const isOverBudget = spent > limit;
                     const remaining = limit - spent;
-                    
+
                     return (
-                      <div key={budget.id} style={{ 
-                        padding: 20, 
-                        border: `2px solid ${isOverBudget ? '#f44336' : '#e0e0e0'}`, 
-                        borderRadius: 12,
+                      <div key={budget.id} style={{
+                        padding: "20px",
+                        border: `2px solid ${isOverBudget ? '#f44336' : '#e0e0e0'}`,
+                        borderRadius: "12px",
                         backgroundColor: isOverBudget ? '#ffebee' : 'white',
                         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                         transition: "all 0.3s ease"
@@ -723,7 +828,7 @@ function App() {
                           </div>
                           <div style={{ textAlign: "right" }}>
                             <div style={{ fontSize: "1.4em", fontWeight: "bold", color: isOverBudget ? "#f44336" : "#333" }}>
-                              ${spent.toFixed(2)} / ${limit.toFixed(2)}
+                              {"$" + spent.toFixed(2) + " / $" + limit.toFixed(2)}
                             </div>
                             <div style={{ fontSize: "0.9em", color: isOverBudget ? "#f44336" : "#4caf50", fontWeight: "bold" }}>
                               {isOverBudget ? `💸 Over by $${(spent - limit).toFixed(2)}` : `💰 $${remaining.toFixed(2)} remaining`}
@@ -751,11 +856,37 @@ function App() {
                           <div style={{ fontSize: "0.9em", fontWeight: "bold", color: isOverBudget ? "#f44336" : "#666" }}>
                             {percentage.toFixed(1)}% used
                           </div>
-                          {percentage > 80 && !isOverBudget && (
-                            <div style={{ fontSize: "0.8em", color: "#ff9800", fontWeight: "bold" }}>
-                              ⚠️ Approaching limit
-                            </div>
-                          )}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {percentage > 80 && !isOverBudget && (
+                              <div style={{ fontSize: "0.8em", color: "#ff9800", fontWeight: "bold" }}>
+                                ⚠️ Approaching limit
+                              </div>
+                            )}
+                            <button
+                              onClick={() => handleBudgetDelete(budget.id)}
+                              style={{
+                                padding: "6px 12px",
+                                backgroundColor: "#f44336",
+                                color: "white",
+                                border: "none",
+                                borderRadius: 6,
+                                fontSize: "0.8em",
+                                fontWeight: "bold",
+                                cursor: "pointer",
+                                transition: "background-color 0.2s"
+                              }}
+                              onMouseEnter={(e) => {
+                                const target = e.target as HTMLButtonElement;
+                                target.style.backgroundColor = "#d32f2f";
+                              }}
+                              onMouseLeave={(e) => {
+                                const target = e.target as HTMLButtonElement;
+                                target.style.backgroundColor = "#f44336";
+                              }}
+                            >
+                              🗑️ Delete
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -765,6 +896,7 @@ function App() {
             </div>
           </div>
         );
+// ...existing code...
 
       case "reminders":
         return (
@@ -858,7 +990,7 @@ function App() {
                   marginBottom: 20 
                 }}>
                   <div>
-                    <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", color: "#555" }}>
+                    <label style={{ display: "block", marginBottom: "4px", fontWeight: "bold", color: "#555" }}>
                       🏢 Payee:
                     </label>
                     <input
@@ -878,7 +1010,7 @@ function App() {
                   </div>
 
                   <div>
-                    <label style={{ display: "block", marginBottom: 4, fontWeight: "bold", color: "#555" }}>
+                    <label style={{ display: "block", marginBottom: "4px", fontWeight: "bold", color: "#555" }}>
                       📝 Notes:
                     </label>
                     <input
@@ -950,7 +1082,7 @@ function App() {
                             )}
                           </div>
                           <div style={{ textAlign: "right", fontWeight: "bold", color: isUrgent ? "#f44336" : "#333" }}>
-                            ${parseFloat(reminder.amount.toString()).toFixed(2)}
+                            {"$" + parseFloat(reminder.amount.toString()).toFixed(2)}
                           </div>
                         </div>
                       </div>
@@ -982,8 +1114,34 @@ function App() {
                             <div style={{ fontSize: "0.9em", color: "#666" }}>Notes: {reminder.notes}</div>
                           )}
                         </div>
-                        <div style={{ textAlign: "right", fontWeight: "bold" }}>
-                          ${parseFloat(reminder.amount.toString()).toFixed(2)}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ textAlign: "right", fontWeight: "bold" }}>
+                            {"$" + parseFloat(reminder.amount.toString()).toFixed(2)}
+                          </div>
+                          <button
+                            onClick={() => handleReminderDelete(reminder.id)}
+                            style={{
+                              padding: "6px 12px",
+                              backgroundColor: "#f44336",
+                              color: "white",
+                              border: "none",
+                              borderRadius: 6,
+                              fontSize: "0.8em",
+                              fontWeight: "bold",
+                              cursor: "pointer",
+                              transition: "background-color 0.2s"
+                            }}
+                            onMouseEnter={(e) => {
+                              const target = e.target as HTMLButtonElement;
+                              target.style.backgroundColor = "#d32f2f";
+                            }}
+                            onMouseLeave={(e) => {
+                              const target = e.target as HTMLButtonElement;
+                              target.style.backgroundColor = "#f44336";
+                            }}
+                          >
+                            🗑️ Delete
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1160,7 +1318,7 @@ function App() {
                 <div style={{ display: "grid", gap: 16 }}>
                   {goals.map(goal => {
                     const progress = goal.progress_percentage || 0;
-                    const isCompleted = goal.is_completed === "true";
+                    const isCompleted = goal.is_completed;
                     
                     return (
                       <div key={goal.id} style={{ 
@@ -1175,7 +1333,7 @@ function App() {
                               {goal.name} {isCompleted && "✓"}
                             </h3>
                             <div style={{ fontSize: "0.9em", color: "#666" }}>
-                              ${goal.current_amount.toFixed(2)} of ${goal.target_amount.toFixed(2)}
+                              {"$" + goal.current_amount.toFixed(2) + " of $" + goal.target_amount.toFixed(2)}
                             </div>
                             {goal.target_date && (
                               <div style={{ fontSize: "0.9em", color: "#666" }}>
@@ -1216,45 +1374,43 @@ function App() {
                         </div>
 
                         {/* Action Buttons */}
-                        {!isCompleted && (
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0.01"
-                              placeholder="Amount to add"
-                              style={{ flex: 1, padding: "12px 8px", height: "44px" }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  const amount = parseFloat((e.target as HTMLInputElement).value);
-                                  if (amount > 0) {
-                                    handleGoalContribution(goal.id, amount);
-                                    (e.target as HTMLInputElement).value = '';
-                                  }
-                                }
-                              }}
-                            />
-                            <button 
-                              onClick={(event) => {
-                                const input = (event?.target as HTMLElement)?.previousElementSibling as HTMLInputElement;
-                                const amount = parseFloat(input.value);
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            placeholder="Amount to add"
+                            style={{ flex: 1, padding: "12px 8px", height: "44px" }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const amount = parseFloat((e.target as HTMLInputElement).value);
                                 if (amount > 0) {
                                   handleGoalContribution(goal.id, amount);
-                                  input.value = '';
+                                  (e.target as HTMLInputElement).value = '';
                                 }
-                              }}
-                              style={{ padding: "4px 12px" }}
-                            >
-                              Add
-                            </button>
-                            <button 
-                              onClick={() => handleGoalDelete(goal.id)}
-                              style={{ padding: "4px 12px", backgroundColor: "#f44336", color: "white", border: "none", borderRadius: "4px" }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={(event) => {
+                              const input = (event?.target as HTMLElement)?.previousElementSibling as HTMLInputElement;
+                              const amount = parseFloat(input.value);
+                              if (amount > 0) {
+                                handleGoalContribution(goal.id, amount);
+                                input.value = '';
+                              }
+                            }}
+                            style={{ padding: "4px 12px" }}
+                          >
+                            Add
+                          </button>
+                          <button
+                            onClick={() => handleGoalDelete(goal.id)}
+                            style={{ padding: "4px 12px", backgroundColor: "#f44336", color: "white", border: "none", borderRadius: "4px" }}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -1308,8 +1464,8 @@ function App() {
                 textAlign: "center"
               }}>
                 <div style={{ fontSize: "2em", marginBottom: 8 }}>💵</div>
-                <h3 style={{ margin: "0 0 8px 0", color: "#4caf50", fontSize: "1.1em" }}>Total Income</h3>
-                <div style={{ fontSize: "2em", fontWeight: "bold", color: "#2e7d32" }}>${insightsTotalIncome.toFixed(2)}</div>
+  <h3 style={{ margin: "0 0 8px 0", color: "#4caf50", fontSize: "1.1em" }}>Total Income</h3>
+  <div style={{ fontSize: "2em", fontWeight: "bold", color: "#2e7d32" }}>{"$" + insightsTotalIncome.toFixed(2)}</div>
               </div>
               <div style={{ 
                 padding: 20, 
@@ -1320,8 +1476,8 @@ function App() {
                 textAlign: "center"
               }}>
                 <div style={{ fontSize: "2em", marginBottom: 8 }}>💸</div>
-                <h3 style={{ margin: "0 0 8px 0", color: "#f44336", fontSize: "1.1em" }}>Total Expenses</h3>
-                <div style={{ fontSize: "2em", fontWeight: "bold", color: "#c62828" }}>${insightsTotalExpenses.toFixed(2)}</div>
+  <h3 style={{ margin: "0 0 8px 0", color: "#f44336", fontSize: "1.1em" }}>Total Expenses</h3>
+  <div style={{ fontSize: "2em", fontWeight: "bold", color: "#c62828" }}>{"$" + insightsTotalExpenses.toFixed(2)}</div>
               </div>
               <div style={{ 
                 padding: 20, 
@@ -1332,14 +1488,14 @@ function App() {
                 textAlign: "center"
               }}>
                 <div style={{ fontSize: "2em", marginBottom: 8 }}>{insightsTotalIncome - insightsTotalExpenses >= 0 ? '📈' : '📉'}</div>
-                <h3 style={{ margin: "0 0 8px 0", color: insightsTotalIncome - insightsTotalExpenses >= 0 ? "#9c27b0" : "#f44336", fontSize: "1.1em" }}>Net Income</h3>
-                <div style={{ 
-                  fontSize: "2em", 
-                  fontWeight: "bold", 
-                  color: insightsTotalIncome - insightsTotalExpenses >= 0 ? "#7b1fa2" : "#c62828"
-                }}>
-                  ${(insightsTotalIncome - insightsTotalExpenses).toFixed(2)}
-                </div>
+  <h3 style={{ margin: "0 0 8px 0", color: insightsTotalIncome - insightsTotalExpenses >= 0 ? "#9c27b0" : "#f44336", fontSize: "1.1em" }}>Net Income</h3>
+  <div style={{ 
+    fontSize: "2em", 
+    fontWeight: "bold", 
+    color: insightsTotalIncome - insightsTotalExpenses >= 0 ? "#7b1fa2" : "#c62828"
+  }}>
+    {"$" + (insightsTotalIncome - insightsTotalExpenses).toFixed(2)}
+  </div>
               </div>
             </div>
 
@@ -1378,7 +1534,7 @@ function App() {
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                             <span style={{ fontWeight: "bold", fontSize: "1.1em", color: "#333" }}>📁 {category}</span>
                             <span style={{ fontWeight: "bold", fontSize: "1.1em", color: "#f44336" }}>
-                              ${amount.toFixed(2)} ({percentage.toFixed(1)}%)
+                              {amount.toFixed(2) + " (" + percentage.toFixed(1) + "%)"}
                             </span>
                           </div>
                           <div style={{ height: 8, backgroundColor: "#e0e0e0", borderRadius: 4, overflow: "hidden" }}>
@@ -1432,10 +1588,10 @@ function App() {
                           </h4>
                           <div style={{ textAlign: "right" }}>
                             <div style={{ color: "#4caf50", fontWeight: "bold", marginBottom: 4 }}>
-                              💵 Income: ${data.income.toFixed(2)}
+                              {"💵 Income: $" + data.income.toFixed(2)}
                             </div>
                             <div style={{ color: "#f44336", fontWeight: "bold", marginBottom: 4 }}>
-                              💸 Expenses: ${data.expenses.toFixed(2)}
+                              {"💸 Expenses: $" + data.expenses.toFixed(2)}
                             </div>
                             <div style={{ 
                               fontWeight: "bold", 
@@ -1445,7 +1601,7 @@ function App() {
                               borderRadius: 8,
                               backgroundColor: data.income - data.expenses >= 0 ? "#e8f5e8" : "#ffebee"
                             }}>
-                              📊 Net: ${(data.income - data.expenses).toFixed(2)}
+                              {"📊 Net: $" + (data.income - data.expenses).toFixed(2)}
                             </div>
                           </div>
                         </div>
@@ -1486,9 +1642,9 @@ function App() {
                       <div style={{ fontWeight: "bold", fontSize: "1.2em", color: "#f57400" }}>
                         You have {upcomingReminders.length} bill{upcomingReminders.length > 1 ? 's' : ''} due in the next 7 days
                       </div>
-                      <div style={{ fontSize: "1.4em", fontWeight: "bold", color: "#e65100", marginTop: 4 }}>
-                        💰 Total amount: ${upcomingReminders.reduce((sum, r) => sum + parseFloat(r.amount.toString()), 0).toFixed(2)}
-                      </div>
+                        <div style={{ fontSize: "1.4em", fontWeight: "bold", color: "#e65100", marginTop: 4 }}>
+                          {"💰 Total amount: $" + upcomingReminders.reduce((sum, r) => sum + parseFloat(r.amount.toString()), 0).toFixed(2)}
+                        </div>
                     </div>
                   </div>
                 </div>
@@ -1504,21 +1660,51 @@ function App() {
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px", fontFamily: "system-ui, -apple-system, sans-serif" }}>
-      <header style={{ 
-        textAlign: "center", 
+      <header style={{
         marginBottom: "40px",
         padding: "32px",
         background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         borderRadius: "16px",
         color: "white",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.1)"
+        boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
       }}>
-        <h1 style={{ margin: "0 0 12px 0", fontSize: "2.5em", fontWeight: "bold" }}>
-          💰 Personal Finance Manager
-        </h1>
-        <p style={{ margin: 0, fontSize: "1.2em", opacity: 0.9 }}>
-          Track your transactions, budgets, reminders, and financial goals with ease
-        </p>
+        <div>
+          <h1 style={{ margin: "0 0 12px 0", fontSize: "2.5em", fontWeight: "bold" }}>
+            💰 Personal Finance Manager
+          </h1>
+          <p style={{ margin: 0, fontSize: "1.2em", opacity: 0.9 }}>
+            Track your transactions, budgets, reminders, and financial goals with ease
+          </p>
+        </div>
+        <button
+          onClick={logout}
+          style={{
+            padding: "12px 24px",
+            backgroundColor: "rgba(255, 255, 255, 0.2)",
+            color: "white",
+            border: "2px solid rgba(255, 255, 255, 0.3)",
+            borderRadius: "8px",
+            fontSize: "16px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            transition: "all 0.3s ease"
+          }}
+          onMouseEnter={(e) => {
+            const target = e.target as HTMLButtonElement;
+            target.style.backgroundColor = "rgba(255, 255, 255, 0.3)";
+            target.style.borderColor = "rgba(255, 255, 255, 0.5)";
+          }}
+          onMouseLeave={(e) => {
+            const target = e.target as HTMLButtonElement;
+            target.style.backgroundColor = "rgba(255, 255, 255, 0.2)";
+            target.style.borderColor = "rgba(255, 255, 255, 0.3)";
+          }}
+        >
+          🚪 Logout
+        </button>
       </header>
 
       {/* Tab Navigation */}

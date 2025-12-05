@@ -1,10 +1,11 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, Date, CheckConstraint, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, Date, CheckConstraint, UniqueConstraint, ForeignKey
 from .db import Base
 from datetime import datetime, date
 
 class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     kind = Column(String, index=True)          # "income" | "expense"
     amount = Column(Numeric(12,2), nullable=False)
     category = Column(String, default="general")
@@ -18,17 +19,19 @@ class Transaction(Base):
 class Budget(Base):
     __tablename__ = "budgets"
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     category = Column(String, nullable=False)
     month = Column(String, nullable=False)  # YYYY-MM
     cap_amount = Column(Numeric(12,2), nullable=False)
     __table_args__ = (
-        UniqueConstraint("category","month", name="uq_budget_cat_month"),
+        UniqueConstraint("user_id", "category","month", name="uq_budget_user_cat_month"),
         CheckConstraint("cap_amount >= 0", name="ck_budget_cap_amount_non_negative"),
     )
 
 class Reminder(Base):
     __tablename__ = "reminders"
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     due_date = Column(Date, nullable=False)
     amount = Column(Numeric(12,2), nullable=False)
@@ -41,6 +44,7 @@ class Reminder(Base):
 class Goal(Base):
     __tablename__ = "goals"
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     target_amount = Column(Numeric(12,2), nullable=False)
     current_amount = Column(Numeric(12,2), default=0.0)
@@ -53,4 +57,15 @@ class Goal(Base):
         CheckConstraint("target_amount > 0", name="ck_goal_target_amount_positive"),
         CheckConstraint("current_amount >= 0", name="ck_goal_current_amount_non_negative"),
         CheckConstraint("is_completed IN ('true', 'false')", name="ck_goal_is_completed"),
+    )
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(String, default="true")  # Using string for SQLite compatibility
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        CheckConstraint("is_active IN ('true', 'false')", name="ck_user_is_active"),
     )

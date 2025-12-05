@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from decimal import Decimal
 from datetime import datetime, date
+from typing import Optional
 class TxIn(BaseModel):
     kind: str = Field(pattern="^(income|expense)$")
     amount: Decimal = Field(gt=0)
@@ -46,3 +47,21 @@ class GoalOut(GoalIn):
     progress_percentage: float = 0.0
     created_at: datetime
     class Config: from_attributes = True
+
+class UserCreate(BaseModel):
+    email: str = Field(..., description="User's email address")
+    password: str = Field(..., min_length=8, description="User's password")
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    is_active: str = "true"
+    created_at: datetime
+    class Config: from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
